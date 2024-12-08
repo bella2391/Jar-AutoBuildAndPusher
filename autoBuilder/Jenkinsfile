@@ -41,9 +41,6 @@ pipeline {
             }
         }
         stage('Tag') {
-
-        }
-        stage('Tag') {
             steps {
                 script {
                     withCredentials([string(credentialsId: 'GitHub-Token', variable: 'GIT_TOKEN')]) {
