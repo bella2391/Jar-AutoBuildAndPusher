@@ -1,10 +1,18 @@
 pipeline {
     agent any
+    environment {
+        USERNAME = 'bella2391'
+        REPO_NAME = 'Jenkin-Dependency-Provider'
+        BRANCH_NAME = 'master'
+        REPO_URL = "https://github.com/${USERNAME}/${REPO_NAME}.git"
+        JAR_PATH = 'build/libs/FMC-Dependency-1.0.0.jar'
+    }
+
     stages {
         stage('Checkout') {
             steps {
-                git branch: "master",
-                url: "https://github.com/bella2391/Jenkin-Dependency-Provider.git"
+                git branch: "${BRANCH_NAME}",
+                url: "${REPO_URL}"
             }
         }
         stage('Build') {
@@ -37,14 +45,14 @@ pipeline {
                 script {
                     withCredentials([string(credentialsId: 'GitHub-Token', variable: 'GIT_TOKEN')]) {
                         sh '''
-                        if [ -d "Jenkin-Dependency-Provider" ]; then
-                            rm -rf Jenkin-Dependency-Provider
+                        if [ -d "${REPO_NAME}" ]; then
+                            rm -rf ${REPO_NAME}
                         fi
-                        if git rev-parse "refs/tags/jenkins-FMC-Dependency-${BUILD_NUMBER}" >/dev/null 2>&1; then
-                            echo "Tag jenkins-FMC-Dependency-${BUILD_NUMBER} already exists. Skipping tag creation."
+                        if git rev-parse "refs/tags/${REPO_NAME}-${BUILD_NUMBER}" >/dev/null 2>&1; then
+                            echo "Tag ${REPO_NAME}-${BUILD_NUMBER} already exists. Skipping tag creation."
                         else
-                            git tag -a "jenkins-FMC-Dependency-${BUILD_NUMBER}" -m "Jenkins Build #${BUILD_NUMBER}"
-                            git push "https://oauth2:${GIT_TOKEN}@github.com/bella2391/Jenkin-Dependency-Provider.git" --tags
+                            git tag -a "${REPO_NAME}-${BUILD_NUMBER}" -m "Jenkins Build #${BUILD_NUMBER}"
+                            git push "https://oauth2:${GIT_TOKEN}@github.com/${USERNAME}/${REPO_NAME}.git" --tags
                         fi
                         '''
                     }
@@ -59,9 +67,9 @@ pipeline {
                             acceptType: 'APPLICATION_JSON',
                             contentType: 'APPLICATION_JSON',
                             httpMode: 'POST',
-                            url: "https://api.github.com/repos/bella2391/Jenkin-Dependency-Provider/releases",
+                            url: "https://api.github.com/repos/${USERNAME}/${REPO_NAME}/releases",
                             requestBody: """{
-                                "tag_name": "jenkins-FMC-Dependency-${BUILD_NUMBER}",
+                                "tag_name": "${REPO_NAME}-${BUILD_NUMBER}",
                                 "name": "Release ${BUILD_NUMBER}",
                                 "body": "Release description",
                                 "draft": false,
@@ -79,12 +87,12 @@ pipeline {
                         def releaseId = new groovy.json.JsonSlurper().parseText(response.content).id
                         echo "GitHub Release ID: ${releaseId}"
 
-                        def jarFilePath = "build/libs/FMC-Dependency-1.0.0.jar"
+                        def jarFilePath = "${JAR_PATH}"
                         if (!fileExists(jarFilePath)) {
                             error "JAR file not found: ${jarFilePath}"
                         }
                         def jarFileBytes = readFile(file: jarFilePath, encoding: 'ISO-8859-1').getBytes('ISO-8859-1')
-                        def uploadUrl = "https://uploads.github.com/repos/bella2391/Jenkin-Dependency-Provider/releases/${releaseId}/assets?name=${jarFilePath.split('/').last()}"
+                        def uploadUrl = "https://uploads.github.com/repos/${USERNAME}/${REPO_NAME}/releases/${releaseId}/assets?name=${jarFilePath.split('/').last()}"
 
                         def uploadResponse = httpRequest(
                             acceptType: 'APPLICATION_JSON',
