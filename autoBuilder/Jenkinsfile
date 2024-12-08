@@ -2,7 +2,7 @@ pipeline {
     agent any
     environment {
         USERNAME = 'bella2391'
-        REPO_NAME = 'Jenkin-Dependency-Provider'
+        REPO_NAME = 'Dependency-Provider'
         BRANCH_NAME = 'master'
         REPO_URL = "https://github.com/${USERNAME}/${REPO_NAME}.git"
         JAR_PATH = 'build/libs/FMC-Dependency-1.0.0.jar'
@@ -10,6 +10,16 @@ pipeline {
         // Caution: Do not set this value too low, as it may cause Jenkins to get stuck in a loop of aborted builds.
         // build intervals (mininutes)
         BUILD_INTERVAL_MINUTES = 5
+        AUTO_BUILD_NOTIFICATION = true
+        BUILD_RESULT_NOTIFICATION = true
+        WEBHOOK_NAME = 'Jenkins'
+        WEBHOOK_AVATAR_URL = 'https://licensecounter.jp/devops-hub/assets/images/products/logo-jenkins680_500.png' // 'https://www.spiceworks.co.jp/blog/wp-content/uploads/2014/06/logo.png'
+        AUTO_BUILD_THUMBNAIL_URL = 'https://engineering.tomtom.com/assets/images/java/create-java-jar.png'
+        BUILD_RESULT_THUMBNAIL_URL = 'https://cloudbees.techmatrix.jp/wp-content/uploads/2017/06/logo-title.png'
+        BUILD_FAILED_THUMBNAIL_URL = 'https://slack.engineering/wp-content/uploads/sites/7/2021/05/jenkins-fire.png'
+        WEBHOOK_AUTO_BUILD_COLOR = 16705372 // yellow // blue: 5814783
+        WEBHOOK_BUILD_RESULT_COLOR = 5763719 // green
+        WEBHOOK_BUILD_RESULT_FAILDED_COLOR = 16711680 // red
     }
     stages {
         stage('Check Build Interval') {
@@ -31,6 +41,55 @@ pipeline {
                     }
                 }
             }
+        }
+        stage('Auto Build Notification') {
+            steps {
+                script {
+                    if (AUTO_BUILD_NOTIFICATION) {
+                        withCredentials([string(credentialsId: 'Discord-Webhook-URL', variable: 'DISCORD_WEBHOOK_URL')]) {
+                            def payload = """
+                            {
+                                "username": "${WEBHOOK_NAME}",
+                                "avatar_url": "${WEBHOOK_AVATAR_URL}",
+                                "embeds": [{
+                                    "title": "自動ビルド通知",
+                                    "description": "**ビルド情報**",
+                                    "color": ${WEBHOOK_AUTO_BUILD_COLOR},
+                                    "author": {
+                                        "name": "${USERNAME}",
+                                        "icon_url": "https://github.com/${USERNAME}.png",
+                                        "url": "https://github.com/${USERNAME}"
+                                        },
+                                    "thumbnail": {
+                                        "url": "${AUTO_BUILD_THUMBNAIL_URL}"
+                                    },
+                                    "fields": [
+                                        {
+                                            "name": "ビルドURL",
+                                            "value": "${BUILD_URL}",
+                                            "inline": true
+                                        },
+                                        {
+                                            "name": "ビルド対象のレポジトリ",
+                                            "value": "${REPO_URL}",
+                                            "inline": true
+                                        }
+                                    ],
+                                    "timestamp": "${new Date().format("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", TimeZone.getTimeZone('Asia/Tokyo'))}"
+                                }]
+                            }
+                            """
+
+                            sh """
+                                curl -H "Content-Type: application/json" \\
+                                    -d '${payload}' \\
+                                    ${DISCORD_WEBHOOK_URL}
+                            """
+                        }
+                    }
+                }
+            }
+
         }
         stage('Checkout') {
             steps {
@@ -123,6 +182,107 @@ pipeline {
                                             [name: 'Content-Type', value: 'application/java-archive']]
                         )
                         echo "GitHub Upload Response: ${uploadResponse}"
+                    }
+                }
+            }
+        }
+        stage('Discord Result Notification') {
+            steps {
+                script {
+                    if (BUILD_RESULT_NOTIFICATION) {
+                        withCredentials([string(credentialsId: 'Discord-Webhook-URL', variable: 'DISCORD_WEBHOOK_URL')]) {
+                            def releaseUrl = "https://github.com/${USERNAME}/${REPO_NAME}/releases/tag/${TAG_NAME}"
+                            def payload = """
+                            {
+                                "username": "${WEBHOOK_NAME}",
+                                "avatar_url": "${WEBHOOK_AVATAR_URL}",
+                                "embeds": [{
+                                    "title": "新しいリリースが作成されました",
+                                    "description": "**リリース情報**",
+                                    "color": ${WEBHOOK_BUILD_RESULT_COLOR},
+                                    "author": {
+                                        "name": "${USERNAME}",
+                                        "icon_url": "https://github.com/${USERNAME}.png",
+                                        "url": "https://github.com/${USERNAME}"
+                                    },
+                                    "thumbnail": {
+                                        "url": "${BUILD_RESULT_THUMBNAIL_URL}"
+                                    },
+                                    "fields": [
+                                        {
+                                            "name": "リリースタグ",
+                                            "value": "${TAG_NAME}",
+                                            "inline": true
+                                        },
+                                        {
+                                            "name": "ビルド番号",
+                                            "value": "#${BUILD_NUMBER}",
+                                            "inline": true
+                                        },
+                                        {
+                                            "name": "リリースURL",
+                                            "value": "${releaseUrl}"
+                                        }
+                                    ],
+                                    "timestamp": "${new Date().format("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", TimeZone.getTimeZone('Asia/Tokyo'))}"
+                                }]
+                            }
+                            """
+
+                            sh """
+                                curl -H "Content-Type: application/json" \\
+                                    -d '${payload}' \\
+                                    ${DISCORD_WEBHOOK_URL}
+                            """
+                        }
+                    }
+                }
+            }
+        }
+    }
+    post {
+        failure {
+            script {
+                // Check if the failure is not from 'Check Build Interval' stage
+                def abortedByIntervalCheck = currentBuild.rawBuild.getCauses().any { cause ->
+                    cause.toString().contains('Build aborted: Only')
+                }
+                
+                if (!abortedByIntervalCheck) {
+                    withCredentials([string(credentialsId: 'Discord-Webhook-URL', variable: 'DISCORD_WEBHOOK_URL')]) {
+                        def payload = """
+                        {
+                            "username": "${WEBHOOK_NAME}",
+                            "avatar_url": "${WEBHOOK_AVATAR_URL}",
+                            "embeds": [{
+                                "title": "ビルド失敗通知",
+                                "description": "ビルドが失敗しました。詳細は [コンソールログ](${BUILD_URL}pipeline-console/ ) を確認してください。",
+                                "color": ${WEBHOOK_BUILD_RESULT_FAILDED_COLOR},
+                                "thumbnail": {
+                                    "url": "${BUILD_FAILED_THUMBNAIL_URL}"
+                                },
+                                "fields": [
+                                    {
+                                        "name": "ビルドURL",
+                                        "value": "${BUILD_URL}",
+                                        "inline": true
+                                    },
+                                    {
+                                        "name": "リポジトリ",
+                                        "value": "${REPO_URL}",
+                                        "inline": true
+                                    }
+                                ],
+                                "timestamp": "${new Date().format("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", TimeZone.getTimeZone('Asia/Tokyo'))}"
+                            }]
+                        }
+                        """
+                        
+                        sh """
+                            curl -H "Content-Type: application/json" \\
+                                 -d '${payload}' \\
+                                 ${DISCORD_WEBHOOK_URL}
+                        """
                     }
                 }
             }
