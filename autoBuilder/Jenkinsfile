@@ -40,11 +40,14 @@ pipeline {
                 }
             }
         }
-        stage('Tag') {
+        stage('Tag and Push') {
             steps {
                 script {
                     withCredentials([string(credentialsId: 'GitHub-Token', variable: 'GIT_TOKEN')]) {
                         sh '''
+                        if [ -d "${REPO_NAME}" ]; then
+                            rm -rf ${REPO_NAME}
+                        fi
                         if git rev-parse "refs/tags/${REPO_NAME}-${BUILD_NUMBER}" >/dev/null 2>&1; then
                             echo "Tag ${REPO_NAME}-${BUILD_NUMBER} already exists. Skipping tag creation."
                         else
@@ -59,25 +62,37 @@ pipeline {
             steps {
                 script {
                     withCredentials([string(credentialsId: 'GitHub-Token', variable: 'GIT_TOKEN')]) {
-                        def response = httpRequest(
+                        def existingReleases = httpRequest(
                             acceptType: 'APPLICATION_JSON',
                             contentType: 'APPLICATION_JSON',
-                            httpMode: 'POST',
+                            httpMode: 'GET',
                             url: "https://api.github.com/repos/${USERNAME}/${REPO_NAME}/releases",
-                            requestBody: """{
-                                "tag_name": "${REPO_NAME}-${BUILD_NUMBER}",
-                                "name": "Release ${BUILD_NUMBER}",
-                                "body": "Release description",
-                                "draft": false,
-                                "prerelease": false
-                            }""",
                             customHeaders: [[name: 'Authorization', value: "token ${GIT_TOKEN}"]]
                         )
-                        
-                        if (response.status == 422) {
-                            echo "GitHub Release creation failed: ${response.content}"
+
+                        def releases = new groovy.json.JsonSlurper().parseText(existingReleases.content)
+                        def tagExists = releases.any { it.tag_name == "${REPO_NAME}-${BUILD_NUMBER}" }
+
+                        if (tagExists) {
+                            echo "Release already exists for tag: ${REPO_NAME}-${BUILD_NUMBER}. Skipping release creation."
                         } else {
-                            echo "GitHub Release created successfully: ${response.content}"
+                            def response = httpRequest(
+                                acceptType: 'APPLICATION_JSON',
+                                contentType: 'APPLICATION_JSON',
+                                httpMode: 'POST',
+                                url: "https://api.github.com/repos/${USERNAME}/${REPO_NAME}/releases",
+                                requestBody: """{
+                                    "tag_name": "${REPO_NAME}-${BUILD_NUMBER}",
+                                    "name": "Release ${BUILD_NUMBER}",
+                                    "body": "Release description",
+                                    "draft": false,
+                                    "prerelease": false
+                                }""",
+                                customHeaders: [[name: 'Authorization', value: "token ${GIT_TOKEN}"]]
+                            )
+                            
+                            echo "Response Status: ${response.status}"
+                            echo "Response Content: ${response.content}"
                         }
                         
                         def releaseId = new groovy.json.JsonSlurper().parseText(response.content).id
