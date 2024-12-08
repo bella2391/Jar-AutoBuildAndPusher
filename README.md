@@ -6,5 +6,5 @@ What you can do
 * Auto-Create Tag&Release
 * Notification to Discord
 
-Here is:
+Here is:<br><br>
 ![alt text](https://github.com/bella2391/branding/blob/master/explain/autobuilder/discord_notification.png)<br>
