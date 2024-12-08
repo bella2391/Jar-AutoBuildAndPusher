@@ -15,7 +15,7 @@ pipeline {
         WEBHOOK_NAME = 'Jenkins'
         WEBHOOK_AVATAR_URL = 'https://licensecounter.jp/devops-hub/assets/images/products/logo-jenkins680_500.png' // 'https://www.spiceworks.co.jp/blog/wp-content/uploads/2014/06/logo.png'
         AUTO_BUILD_THUMBNAIL_URL = 'https://engineering.tomtom.com/assets/images/java/create-java-jar.png'
-        BUILD_RESULT_THUMBNAIL_URL = 'https://cloudbees.techmatrix.jp/wp-content/uploads/2017/06/logo-title.png'
+        BUILD_RESULT_THUMBNAIL_URL = 'https://meister-kentei.jp/magazine/wp-content/uploads/2022/11/github-6980894_1280.png'
         BUILD_FAILED_THUMBNAIL_URL = 'https://slack.engineering/wp-content/uploads/sites/7/2021/05/jenkins-fire.png'
         WEBHOOK_AUTO_BUILD_COLOR = 16705372 // yellow // blue: 5814783
         WEBHOOK_BUILD_RESULT_COLOR = 5763719 // green
